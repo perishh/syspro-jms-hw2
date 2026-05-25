@@ -8,62 +8,64 @@
 #include <unistd.h>
 
 #include "command.h"
+#include "globals.h"
 
 #define INITIAL_BUFFER_SIZE 4096
 
 void print_usage() {
-  fprintf(stderr, "Usage: jms_console -w <jms_in> -r <jms_out> [-o "
-                  "<operations_file>]\n");
+  fprintf(stderr,
+          "Usage: jms_console -h <host> -p <port> [-o "
+          "<operations_file>]\n");
 }
 
 int out;
-Command *cmd = NULL;
+Command* cmd = NULL;
 
-char *buffer = NULL;
+char* buffer = NULL;
 size_t buffer_size = 0;
 
-Action parse_action(const char *cmd);
-long read_commands(FILE *stream);
+Action parse_action(const char* cmd);
+long read_commands(FILE* stream);
 long redirect(int fromfd, int tofd);
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // Ignore SIGPIPE to prevent crashing when writing to closed pipe
   // signal(2), write(2)
   signal(SIGPIPE, SIG_IGN);
 
-  char *jms_in = NULL;
-  char *jms_out = NULL;
-  char *operations_file = NULL;
+  char* host = NULL;
+  int port = 0;
+  char* operations_file = NULL;
 
   // getopt(3)
   int opt;
-  while ((opt = getopt(argc, argv, "w:r:o")) != -1) {
+  while ((opt = getopt(argc, argv, "h:p:o")) != -1) {
     switch (opt) {
-    case 'w':
-      jms_in = optarg;
-      break;
-    case 'r':
-      jms_out = optarg;
-      break;
-    case 'o':
-      // Workaround to allow space after -o
-      if (optarg) {
-        operations_file = optarg;
+      case 'h':
+        host = optarg;
         break;
-      } else if (optind < argc && argv[optind][0] != '-') {
-        operations_file = argv[optind++];
+      case 'p':
+        port = atoi(optarg);
         break;
-      }
-      /* fallthrough */
-    default:
-      // Empty or unknown argument
-      print_usage();
-      return 1;
+      case 'o':
+        // Workaround to allow space after -o
+        if (optarg) {
+          operations_file = optarg;
+          break;
+        } else if (optind < argc && argv[optind][0] != '-') {
+          operations_file = argv[optind++];
+          break;
+        }
+        /* fallthrough */
+      default:
+        // Empty or unknown argument
+        print_usage();
+        return 1;
     }
   }
 
-  if (jms_in == NULL || jms_out == NULL) {
-    // Ensure required parameters were given
+  if (host == NULL || !PORT_IN_USER_RANGE(port)) {
+    // Ensure required parameters were given, port is in user range
     print_usage();
     return 1;
   }
@@ -109,7 +111,7 @@ int main(int argc, char **argv) {
   }
 
   if (operations_file != NULL) {
-    FILE *ops = fopen(operations_file, "r");
+    FILE* ops = fopen(operations_file, "r");
     if (ops == NULL) {
       // ferror(3)
       perror("fopen");
@@ -168,17 +170,16 @@ long redirect(int fromfd, int tofd) {
   return nread;
 }
 
-long read_commands(FILE *stream) {
+long read_commands(FILE* stream) {
   ssize_t nread = getline(&buffer, &buffer_size, stream);
   if (nread <= 0) {
     // ferror(3)
-    if (feof(stream))
-      return 0;
+    if (feof(stream)) return 0;
     return nread;
   }
 
   // Parse command
-  char *action = strtok(buffer, " \n");
+  char* action = strtok(buffer, " \n");
   if (action == NULL) {
     fprintf(stderr, "Invalid command.\n");
     return -1;
@@ -234,7 +235,7 @@ long read_commands(FILE *stream) {
   return nread;
 }
 
-Action parse_action(const char *cmd) {
+Action parse_action(const char* cmd) {
   if (strcmp(cmd, "submit") == 0) {
     return SUBMIT;
   }

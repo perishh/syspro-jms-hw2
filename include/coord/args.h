@@ -2,16 +2,21 @@
 #define ARGS_H
 
 /**
- * @brief Parses path & jobs_pool arguments, changes
+ * @brief Parses port, path & workers arguments, changes
  * changes working directory to path.
  *
  * @return 0 on success, -1 otherwise
  */
-int args_init(int argc, char **argv);
+int args_init(int argc, char** argv);
 
 /**
- * @return jobs_pool value
+ * @return workers value
  */
-int get_jobs_pool();
+int get_workers();
+
+/**
+ * @return port value
+ */
+int get_port();
 
 #endif

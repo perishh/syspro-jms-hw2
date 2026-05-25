@@ -4,37 +4,42 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-static int jobs_pool;
+#include "globals.h"
+
+static int workers = 0;
+static int port = 0;
 
 void print_usage() {
-  fprintf(stderr, "Usage: jms_coord -l <path> -n <jobs_pool>\n");
+  fprintf(stderr, "Usage: jms_coord -p <port> -l <path> -n <workers>\n");
 }
 
-int get_jobs_pool() {
-  return jobs_pool;
-}
+int get_workers() { return workers; }
+int get_port() { return port; }
 
-int args_init(int argc, char **argv) {
-  char *path;
+int args_init(int argc, char** argv) {
+  char* path = NULL;
 
   // getopt(3)
   int opt;
-  while ((opt = getopt(argc, argv, "l:n:")) != -1) {
+  while ((opt = getopt(argc, argv, "p:l:n:")) != -1) {
     switch (opt) {
-    case 'l':
-      path = optarg;
-      break;
-    case 'n':
-      jobs_pool = atoi(optarg);
-      break;
-    default:
-      // Empty or unknown argument
-      print_usage();
-      return -1;
+      case 'p':
+        port = atoi(optarg);
+        break;
+      case 'l':
+        path = optarg;
+        break;
+      case 'n':
+        workers = atoi(optarg);
+        break;
+      default:
+        // Empty or unknown argument
+        print_usage();
+        return -1;
     }
   }
 
-  if (path == NULL || jobs_pool <= 0) {
+  if (path == NULL || workers <= 0 || !PORT_IN_USER_RANGE(port)) {
     // Ensure arguments are valid
     print_usage();
     return -1;
