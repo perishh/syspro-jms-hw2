@@ -1,11 +1,13 @@
+#include <netinet/in.h>
 #include <signal.h>
-#include <stdio.h>
 #include <sys/epoll.h>
 #include <sys/signalfd.h>
+#include <sys/socket.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "args.h"
+#include "client.h"
 #include "cmd.h"
 #include "command.h"
 #include "io.h"
@@ -13,9 +15,46 @@
 #include "pool.h"
 #include "sig.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   if (args_init(argc, argv) < 0) {
     return 1;
+  }
+
+  // Initialize TCP Server
+  // socket(2)
+  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+  if (server_fd < 0) {
+    return 1;
+  }
+
+  struct sockaddr_in addr;
+  addr.sin_family = AF_INET;
+  addr.sin_addr.s_addr = INADDR_ANY;
+  addr.sin_port = htons(get_port());
+
+  if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    close(server_fd);
+    return 1;
+  }
+
+  // Start listening
+  // listen(2)
+
+  if (listen(server_fd, 5) < 0) {
+    close(server_fd);
+    return 1;
+  }
+
+  while (1) {
+    int client_fd = accept(server_fd, NULL, NULL);
+    if (client_fd < 0) {
+      continue;
+    }
+
+    if (client_start(client_fd) < 0) {
+      close(client_fd);
+      continue;
+    }
   }
 
   if (cmd_init() < 0) {
@@ -53,7 +92,7 @@ int main(int argc, char **argv) {
   int shutting_down = 0;
   int status = 0;
 
-  struct epoll_event *events;
+  struct epoll_event* events;
   for (;;) {
     int count = polling_wait(&events);
     if (count < 0) {
@@ -63,47 +102,47 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < count; i++) {
       if (events[i].data.fd == JMSIN_FILENO) {
-        Command *cmd = cmd_read(JMSIN_FILENO);
+        Command* cmd = cmd_read(JMSIN_FILENO);
         if (cmd == NULL) {
           continue;
         }
 
         switch (cmd->action) {
-        case SUBMIT:
-          if (!shutting_down) {
-            pool_submit(cmd);
-          }
-          break;
-        case SUSPEND:
-        case RESUME:
-          if (!shutting_down) {
+          case SUBMIT:
+            if (!shutting_down) {
+              pool_submit(cmd);
+            }
+            break;
+          case SUSPEND:
+          case RESUME:
+            if (!shutting_down) {
+              pool_broadcast(cmd);
+            }
+            break;
+          case STATUS_ALL:
+            pool_status_all(cmd);
+            break;
+          case STATUS:
+            pool_status(cmd);
+            break;
+          case SHOW_ACTIVE:
             pool_broadcast(cmd);
-          }
-          break;
-        case STATUS_ALL:
-          pool_status_all(cmd);
-          break;
-        case STATUS:
-          pool_status(cmd);
-          break;
-        case SHOW_ACTIVE:
-          pool_broadcast(cmd);
-          break;
-        case SHOW_FINISHED:
-          pool_finished();
-          break;
-        case SHOW_POOLS:
-          pool_show();
-          break;
-        case SHUTDOWN:
-          shutting_down = 1;
-          if (pool_shutdown()) {
-            // NO POOLS ACTIVE
-            goto stop;
-          }
-          break;
-        case UNKNOWN:
-          break;
+            break;
+          case SHOW_FINISHED:
+            pool_finished();
+            break;
+          case SHOW_POOLS:
+            pool_show();
+            break;
+          case SHUTDOWN:
+            shutting_down = 1;
+            if (pool_shutdown()) {
+              // NO POOLS ACTIVE
+              goto stop;
+            }
+            break;
+          case UNKNOWN:
+            break;
         }
       } else if (events[i].data.fd == SIG_FILENO) {
         struct signalfd_siginfo siginfo;
