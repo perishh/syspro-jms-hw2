@@ -2,10 +2,10 @@
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "map.h"
 #include "queue.h"
-#include "utils.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t queue_not_empty_cond = PTHREAD_COND_INITIALIZER;
@@ -24,33 +24,38 @@ int job_init() {
   return 0;
 }
 
-int job_add(char* raw) {
+int job_add(int len, char* raw) {
   pthread_mutex_lock(&mutex);
 
-  int argc = count_words(raw);
-  char* argv[argc + 1];  // Account for terminating NULL; TODO: Consider malloc
-
-  if (decode_args(raw, argv) < 0) {
+  char* argv = malloc((len + 1) * sizeof(char));
+  if (argv == NULL) {
     pthread_mutex_unlock(&mutex);
     return -1;
   }
 
+  memcpy(argv, raw, len);
+  // Ensure null termination
+  argv[len] = '\0';
+
   Job* job = malloc(sizeof(Job));
   if (job == NULL) {
     pthread_mutex_unlock(&mutex);
+    free(argv);
     return -1;
   }
 
   job->id = job_key++;
   job->suspended = 0;
   job->finished = 0;
+  job->pid = -1;
   // time(2)
   job->timestamp = time(NULL);
-  job->pid = -1;
+  job->raw_argv = argv;
 
   if (map_insert(job_map, job->id, job) < 0) {
     pthread_mutex_unlock(&mutex);
     free(job);
+    free(argv);
     return -1;
   }
 
@@ -58,6 +63,7 @@ int job_add(char* raw) {
     map_remove(job_map, job->id);
     pthread_mutex_unlock(&mutex);
     free(job);
+    free(argv);
     return -1;
   }
 
@@ -80,6 +86,9 @@ Job* job_get_available() {
   pthread_mutex_unlock(&mutex);
   return job;
 }
+
+void job_lock() { pthread_mutex_lock(&mutex); }
+void job_unlock() { pthread_mutex_unlock(&mutex); }
 
 void job_free() {
   // TODO

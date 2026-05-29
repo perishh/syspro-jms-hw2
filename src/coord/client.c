@@ -26,7 +26,7 @@ void* client_main(void* argv) {
     switch (cmd->action) {
       case SUBMIT:
         // TODO: Handle error
-        job_add(cmd->args);
+        job_add(cmd->len, cmd->args);
         break;
     }
 

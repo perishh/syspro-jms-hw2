@@ -33,6 +33,12 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // setsockopt(2)
+  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) <
+      0) {
+    perror("setsockopt");
+  }
+
   struct sockaddr_in addr;
   addr.sin_family = AF_INET;
   addr.sin_addr.s_addr = INADDR_ANY;
