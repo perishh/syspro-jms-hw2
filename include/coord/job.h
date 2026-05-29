@@ -18,6 +18,8 @@ int job_init();
 int job_add(int client, int len, char* raw);
 void job_status(int client, int id);
 void job_show_active(int client);
+void job_show_finished(int client);
+void job_status_all(int client, int n);
 Job* job_get_available();
 void job_free();
 void job_lock();

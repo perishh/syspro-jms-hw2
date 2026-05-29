@@ -34,6 +34,16 @@ void* client_main(void* argv) {
       case SHOW_ACTIVE:
         job_show_active(client_fd);
         break;
+      case SHOW_FINISHED:
+        job_show_finished(client_fd);
+        break;
+      case STATUS_ALL: {
+        int n = 0;
+        if (cmd->len > 0) {
+          n = atoi(cmd->args);
+        }
+        job_status_all(client_fd, n);
+      } break;
     }
 
     free(cmd);

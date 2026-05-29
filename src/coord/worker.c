@@ -21,8 +21,6 @@ void* worker_main() {
     job->raw_argv = NULL;
 
     if (pid < 0) {
-      // TODO: Ensure job finished is checked before checking pid (when it comes
-      // to checking if queued)
       job->state = FINISHED;
 
       job_unlock();
