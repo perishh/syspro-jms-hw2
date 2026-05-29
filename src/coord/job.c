@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "client.h"
 #include "map.h"
 #include "queue.h"
 
@@ -24,12 +25,12 @@ int job_init() {
   return 0;
 }
 
-int job_add(int len, char* raw) {
-  pthread_mutex_lock(&mutex);
+int job_add(int client, int len, char* raw) {
+  job_lock();
 
   char* argv = malloc((len + 1) * sizeof(char));
   if (argv == NULL) {
-    pthread_mutex_unlock(&mutex);
+    job_unlock();
     return -1;
   }
 
@@ -39,7 +40,7 @@ int job_add(int len, char* raw) {
 
   Job* job = malloc(sizeof(Job));
   if (job == NULL) {
-    pthread_mutex_unlock(&mutex);
+    job_unlock();
     free(argv);
     return -1;
   }
@@ -47,13 +48,12 @@ int job_add(int len, char* raw) {
   job->id = job_key++;
   job->suspended = 0;
   job->finished = 0;
+  job->timestamp = 0;
   job->pid = -1;
-  // time(2)
-  job->timestamp = time(NULL);
   job->raw_argv = argv;
 
   if (map_insert(job_map, job->id, job) < 0) {
-    pthread_mutex_unlock(&mutex);
+    job_unlock();
     free(job);
     free(argv);
     return -1;
@@ -61,7 +61,7 @@ int job_add(int len, char* raw) {
 
   if (queue_enqueue(&pending_jobs, job) < 0) {
     map_remove(job_map, job->id);
-    pthread_mutex_unlock(&mutex);
+    job_unlock();
     free(job);
     free(argv);
     return -1;
@@ -69,13 +69,16 @@ int job_add(int len, char* raw) {
 
   pthread_cond_signal(&queue_not_empty_cond);
 
-  pthread_mutex_unlock(&mutex);
+  sendf(client, "JobID: %d\n", job->id);
+  printf("Sent\n");
+
+  job_unlock();
   return 0;
 }
 
 Job* job_get_available() {
   // TODO: Check if error handling is needed
-  pthread_mutex_lock(&mutex);
+  job_lock();
 
   while (pending_jobs.size == 0) {
     pthread_cond_wait(&queue_not_empty_cond, &mutex);
@@ -83,7 +86,7 @@ Job* job_get_available() {
 
   Job* job = queue_dequeue(&pending_jobs);
 
-  pthread_mutex_unlock(&mutex);
+  job_unlock();
   return job;
 }
 

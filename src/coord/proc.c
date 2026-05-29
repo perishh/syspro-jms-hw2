@@ -127,6 +127,8 @@ pid_t proc_start(Job* job) {
     _exit(0);
   }
 
+  job->timestamp = time(NULL);
+
   if (pid < 0) {
     return -1;
   }

@@ -163,14 +163,16 @@ int main(int argc, char** argv) {
 }
 
 long redirect(int fromfd, int tofd) {
-  ssize_t nread;
-  while ((nread = read(fromfd, buffer, buffer_size)) > 0) {
-    // Check for EOT
-    if (buffer[0] == 0x04 || buffer[nread - 1] == 0x04) {
-      return -2;
-    }
-    write(tofd, buffer, nread);
+  ssize_t nread = read(fromfd, buffer, buffer_size);
+  if (nread <= 0) {
+    return nread;
   }
+
+  // Check for EOT
+  if (buffer[0] == 0x04 || buffer[nread - 1] == 0x04) {
+    return -2;
+  }
+  write(tofd, buffer, nread);
 
   return nread;
 }

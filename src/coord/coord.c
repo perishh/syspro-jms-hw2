@@ -1,4 +1,5 @@
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdio.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -9,6 +10,18 @@
 #include "worker.h"
 
 int main(int argc, char** argv) {
+  // sigsetops(3)
+  sigset_t signals;
+  if (sigemptyset(&signals) < 0 || sigaddset(&signals, SIGCHLD) < 0) {
+    return -1;
+  }
+
+  // Block default handling of signals
+  // sigprocmask(2)
+  if (sigprocmask(SIG_BLOCK, &signals, NULL) < 0) {
+    return -1;
+  }
+
   if (args_init(argc, argv) < 0) {
     return 1;
   }

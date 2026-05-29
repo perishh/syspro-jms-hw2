@@ -2,7 +2,6 @@
 
 #include <fcntl.h>
 #include <pthread.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -15,7 +14,6 @@ void* worker_main() {
     Job* job = job_get_available();
 
     job_lock();
-    printf("Worker got job with args: %s\n", job->raw_argv);
 
     pid_t pid = proc_start(job);
 
