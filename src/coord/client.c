@@ -5,6 +5,7 @@
 #include <unistd.h>
 
 #include "command.h"
+#include "job.h"
 
 void* client_main(void* argv) {
   long client_fd = (long)argv;
@@ -22,7 +23,12 @@ void* client_main(void* argv) {
       }
     }
 
-    // TODO: Handle command
+    switch (cmd->action) {
+      case SUBMIT:
+        // TODO: Handle error
+        job_add(cmd->args);
+        break;
+    }
 
     free(cmd);
   }

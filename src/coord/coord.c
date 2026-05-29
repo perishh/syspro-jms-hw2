@@ -4,9 +4,14 @@
 
 #include "args.h"
 #include "client.h"
+#include "job.h"
 
 int main(int argc, char** argv) {
   if (args_init(argc, argv) < 0) {
+    return 1;
+  }
+
+  if (job_init() < 0) {
     return 1;
   }
 
@@ -49,6 +54,7 @@ int main(int argc, char** argv) {
   }
 
   close(server_fd);
+  job_free();
 
   return 0;
 }
