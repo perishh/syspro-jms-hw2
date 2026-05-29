@@ -30,12 +30,16 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (worker_init() < 0) {
+    job_free();
+    return 1;
+  }
+
   // Start workers
-  for (int i = 0; i < get_workers(); i++) {
-    if (worker_start() < 0) {
-      job_free();
-      return 1;
-    }
+  if (worker_start() < 0) {
+    job_free();
+    worker_free();
+    return 1;
   }
 
   // Initialize TCP Server
@@ -88,6 +92,7 @@ int main(int argc, char** argv) {
 
   close(server_fd);
   job_free();
+  worker_free();
 
   return 0;
 }

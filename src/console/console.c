@@ -241,8 +241,8 @@ Action parse_action(const char* cmd) {
   if (strcmp(cmd, "show-active") == 0) {
     return SHOW_ACTIVE;
   }
-  if (strcmp(cmd, "show-pools") == 0) {
-    return SHOW_POOLS;
+  if (strcmp(cmd, "show-workers") == 0) {
+    return SHOW_WORKERS;
   }
   if (strcmp(cmd, "show-finished") == 0) {
     return SHOW_FINISHED;

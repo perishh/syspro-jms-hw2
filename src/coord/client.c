@@ -6,6 +6,7 @@
 
 #include "command.h"
 #include "job.h"
+#include "worker.h"
 
 void* client_main(void* argv) {
   long client_fd = (long)argv;
@@ -44,6 +45,9 @@ void* client_main(void* argv) {
         }
         job_status_all(client_fd, n);
       } break;
+      case SHOW_WORKERS:
+        worker_show(client_fd);
+        break;
     }
 
     free(cmd);
