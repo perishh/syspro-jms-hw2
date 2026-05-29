@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "globals.h"
+
 char* pack_command(const Command* cmd) {
   char* buffer = malloc(CMD_RAW_HEADER_SIZE + cmd->len);
   if (!buffer) {
@@ -23,24 +25,62 @@ char* pack_command(const Command* cmd) {
   return buffer;
 }
 
-Command* unpack_command(const char* buffer) {
+int unpack_command(int fd, char* buffer, Command** cmd) {
+  ssize_t nread = read_all(fd, buffer, CMD_RAW_HEADER_SIZE);
+  if (nread != CMD_RAW_HEADER_SIZE) {
+    if (nread == 0) {
+      return 0;
+    }
+    return -1;
+  }
+
   uint32_t len;
   memcpy(&len, buffer + sizeof(uint16_t) + sizeof(uint32_t), sizeof(uint32_t));
   len = ntohl(len);
 
-  Command* cmd = malloc(sizeof(Command) + len);
-  if (!cmd) {
-    return NULL;
+  Command* cmd_buffer = malloc(sizeof(Command) + len);
+  if (!cmd_buffer) {
+    return -1;
   }
 
-  memcpy(&(cmd->action), buffer, sizeof(uint16_t));
-  cmd->action = ntohs(cmd->action);
+  *cmd = cmd_buffer;
 
-  memcpy(&(cmd->data), buffer + sizeof(uint16_t), sizeof(uint32_t));
-  cmd->data = ntohl(cmd->data);
+  memcpy(&(cmd_buffer->action), buffer, sizeof(uint16_t));
+  cmd_buffer->action = ntohs(cmd_buffer->action);
 
-  cmd->len = len;
-  memcpy(cmd->args, buffer + CMD_RAW_HEADER_SIZE, len);
+  memcpy(&(cmd_buffer->data), buffer + sizeof(uint16_t), sizeof(uint32_t));
+  cmd_buffer->data = ntohl(cmd_buffer->data);
 
-  return cmd;
+  cmd_buffer->len = len;
+  memcpy(cmd_buffer->args, buffer + CMD_RAW_HEADER_SIZE, len);
+
+  if (cmd_buffer->action == UNKNOWN) {
+    free(cmd_buffer);
+    return -1;
+  }
+
+  if (len == 0) {
+    // No arguments given
+    if (cmd_buffer->action != STATUS_ALL &&
+        (cmd_buffer->action & ZERO_ARG_ACTIONS) == 0) {
+      free(cmd_buffer);
+      return -1;
+    }
+    return 1;
+  }
+
+  // TODO: Maybe read blocking
+  nread = read_all(fd, cmd_buffer->args, len + 1);  // \0
+  if (nread < 0) {
+    free(cmd_buffer);
+    return -1;
+  }
+
+  // Ensure null termination
+  if (cmd_buffer->args[len] != '\0') {
+    free(cmd_buffer);
+    return -1;
+  }
+
+  return 1;
 }

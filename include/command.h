@@ -34,6 +34,6 @@ typedef struct {
 
 char* pack_command(const Command* cmd);
 
-Command* unpack_command(const char* buffer);
+int unpack_command(int fd, char* buffer, Command** cmd);
 
 #endif
