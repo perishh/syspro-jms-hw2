@@ -105,12 +105,15 @@ pid_t proc_start(Job* job) {
     return -1;
   }
 
+  time_t now = time(NULL);
+  job->start_time = now;
+
   pid_t pid = fork();
   if (pid == 0) {
     // Job process
 
     // Change working directory
-    if (proc_cd(job->id, job->timestamp) < 0) {
+    if (proc_cd(job->id, now) < 0) {
       _exit(1);
     }
 
@@ -126,8 +129,6 @@ pid_t proc_start(Job* job) {
     }
     _exit(0);
   }
-
-  job->timestamp = time(NULL);
 
   if (pid < 0) {
     return -1;

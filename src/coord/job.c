@@ -46,10 +46,9 @@ int job_add(int client, int len, char* raw) {
   }
 
   job->id = job_key++;
-  job->suspended = 0;
-  job->finished = 0;
-  job->timestamp = 0;
-  job->pid = -1;
+  job->state = QUEUED;
+  job->submit_time = time(NULL);
+  job->start_time = 0;
   job->raw_argv = argv;
 
   if (map_insert(job_map, job->id, job) < 0) {
@@ -83,17 +82,21 @@ void job_status(int client, int id) {
   if (j == NULL) {
     sendf(client, "JobID %d not found\n", id);
   } else {
-    if (j->finished) {
-      sendf(client, "JobID %d Status:\tFinished\n", id);
-    } else if (j->pid == -1) {
-      sendf(client, "JobID %d Status:\tQueued (waiting in job queue)\n", id);
-    } else if (j->suspended) {
-      sendf(client, "JobID %d Status:\tSuspended\n", id);
-    } else {
-      time_t now = time(NULL);
-      long elapsed = now - (j->timestamp);
-      sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n", id,
-            elapsed);
+    switch (j->state) {
+      case QUEUED:
+        sendf(client, "JobID %d Status:\tQueued (waiting in job queue)\n", id);
+        break;
+      case SUSPENDED:
+      case ACTIVE: {
+        time_t now = time(NULL);
+        long elapsed = now - (j->submit_time);
+        sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n", id,
+              elapsed);
+        break;
+      }
+      case FINISHED:
+        sendf(client, "JobID %d Status:\tFinished\n", id);
+        break;
     }
   }
 
@@ -109,8 +112,8 @@ void job_show_active(int client) {
     Node* current = job_map->buckets[i];
     while (current != NULL) {
       Job* j = (Job*)current->data;
-      if (j->pid != -1 && !j->finished) {
-        long elapsed = now - (j->timestamp);
+      if (j->state == ACTIVE) {
+        long elapsed = now - j->start_time;
         sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n", j->id,
               elapsed);
       }
@@ -118,6 +121,38 @@ void job_show_active(int client) {
     }
   }
 
+  job_unlock();
+}
+
+void job_status_all(int client, int n) {
+  job_lock();
+  time_t now = time(NULL);
+
+  for (int i = 0; i < BUCKETS; i++) {
+    Node* current = job_map->buckets[i];
+    while (current != NULL) {
+      Job* j = (Job*)current->data;
+      long elapsed = now - j->submit_time;
+      if (n <= 0 || elapsed <= n) {
+        switch (j->state) {
+          case QUEUED:
+            sendf(client, "JobID %d Status:\tQueued (waiting in job queue)\n",
+                  j->id);
+            break;
+          case SUSPENDED:
+          case ACTIVE: {
+            elapsed = now - j->start_time;
+            sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n",
+                  j->id, elapsed);
+          } break;
+          case FINISHED:
+            sendf(client, "JobID %d Status:\tFinished\n", j->id);
+            break;
+        }
+      }
+      current = current->next;
+    }
+  }
   job_unlock();
 }
 

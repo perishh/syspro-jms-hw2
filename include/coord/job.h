@@ -4,12 +4,13 @@
 #include <time.h>
 #include <unistd.h>
 
+typedef enum { QUEUED, ACTIVE, SUSPENDED, FINISHED } JobState;
+
 typedef struct {
   int id;
-  pid_t pid;
-  int suspended;
-  int finished;
-  time_t timestamp;
+  JobState state;
+  time_t submit_time;
+  time_t start_time;
   char* raw_argv;  // TODO: reminder to free
 } Job;
 

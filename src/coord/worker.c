@@ -23,13 +23,11 @@ void* worker_main() {
     if (pid < 0) {
       // TODO: Ensure job finished is checked before checking pid (when it comes
       // to checking if queued)
-      job->finished = 1;
+      job->state = FINISHED;
 
       job_unlock();
       continue;
     }
-
-    job->pid = pid;
 
     job_unlock();
 
@@ -41,11 +39,11 @@ void* worker_main() {
 
       if (WIFSTOPPED(wstatus)) {
         job_lock();
-        job->suspended = 1;
+        job->state = SUSPENDED;
         job_unlock();
       } else if (WIFCONTINUED(wstatus)) {
         job_lock();
-        job->suspended = 0;
+        job->state = ACTIVE;
         job_unlock();
       } else if (WIFEXITED(wstatus)) {
         break;
@@ -53,7 +51,7 @@ void* worker_main() {
     }
 
     job_lock();
-    job->finished = 1;
+    job->state = FINISHED;
     job_unlock();
   }
   return NULL;
