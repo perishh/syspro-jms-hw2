@@ -1,10 +1,12 @@
 #include <netinet/in.h>
+#include <stdio.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include "args.h"
 #include "client.h"
 #include "job.h"
+#include "worker.h"
 
 int main(int argc, char** argv) {
   if (args_init(argc, argv) < 0) {
@@ -15,10 +17,19 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // Start workers
+  for (int i = 0; i < get_workers(); i++) {
+    if (worker_start() < 0) {
+      job_free();
+      return 1;
+    }
+  }
+
   // Initialize TCP Server
   // socket(2)
   int server_fd = socket(AF_INET, SOCK_STREAM, 0);
   if (server_fd < 0) {
+    perror("socket");
     return 1;
   }
 
@@ -28,6 +39,7 @@ int main(int argc, char** argv) {
   addr.sin_port = htons(get_port());
 
   if (bind(server_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    perror("bind");
     close(server_fd);
     return 1;
   }
@@ -36,6 +48,7 @@ int main(int argc, char** argv) {
   // listen(2)
 
   if (listen(server_fd, 5) < 0) {
+    perror("listen");
     close(server_fd);
     return 1;
   }
@@ -44,6 +57,7 @@ int main(int argc, char** argv) {
     // TODO: Handle exiting
     int client_fd = accept(server_fd, NULL, NULL);
     if (client_fd < 0) {
+      perror("accept");
       continue;
     }
 

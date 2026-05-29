@@ -14,6 +14,7 @@ typedef struct {
 
 int job_init();
 int job_add(char* raw);
+Job* job_get_available();
 void job_free();
 
 #endif

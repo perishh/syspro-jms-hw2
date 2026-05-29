@@ -67,6 +67,20 @@ int job_add(char* raw) {
   return 0;
 }
 
+Job* job_get_available() {
+  // TODO: Check if error handling is needed
+  pthread_mutex_lock(&mutex);
+
+  while (pending_jobs.size == 0) {
+    pthread_cond_wait(&queue_not_empty_cond, &mutex);
+  }
+
+  Job* job = queue_dequeue(&pending_jobs);
+
+  pthread_mutex_unlock(&mutex);
+  return job;
+}
+
 void job_free() {
   // TODO
 }

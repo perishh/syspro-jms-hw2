@@ -34,7 +34,7 @@ typedef struct {
 // TODO: Ensure buffers contain the assumed data and
 // lengths to prevent buffer overflows
 
-int pack_command(int fd, Command* cmd);
+int pack_command(int fd, char* arg_buffer, Command* cmd);
 int unpack_command(int fd, Command** cmd);
 
 #endif

@@ -218,7 +218,7 @@ long read_commands(FILE* stream) {
   }
 
   // Send command
-  if (pack_command(conn, cmd) != 1) {
+  if (pack_command(conn, buffer + action_length_with_null, cmd) != 1) {
     fprintf(stderr, "Failed to send command.\n");
     return -1;
   }
@@ -249,10 +249,10 @@ Action parse_action(const char* cmd) {
     return SUSPEND;
   }
   if (strcmp(cmd, "resume") == 0) {
-    return SUSPEND;
+    return RESUME;
   }
   if (strcmp(cmd, "suspend") == 0) {
-    return RESUME;
+    return SUSPEND;
   }
   if (strcmp(cmd, "shutdown") == 0) {
     return SHUTDOWN;

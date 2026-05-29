@@ -2,7 +2,7 @@
 
 #include <stdlib.h>
 
-#include "list.h"
+#include "queue.h"
 
 #define BUCKETS 50
 

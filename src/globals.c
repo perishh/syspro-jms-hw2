@@ -21,9 +21,10 @@ int write_all(int fd, char* buf, size_t n) {
 }
 
 int read_all(int fd, char* buf, size_t n) {
-  while (n > 0) {
+  ssize_t remaining = n;
+  while (remaining > 0) {
     // TODO: Maybe use read_blocking?
-    ssize_t nread = read(fd, buf, n);
+    ssize_t nread = read(fd, buf, remaining);
     if (nread <= 0) {
       if (errno == EINTR) {
         // We can try again
@@ -31,7 +32,7 @@ int read_all(int fd, char* buf, size_t n) {
       }
       return nread;
     }
-    n -= nread;
+    remaining -= nread;
     buf += nread;
   }
   return n;

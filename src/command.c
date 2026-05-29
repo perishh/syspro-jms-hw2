@@ -1,12 +1,13 @@
 #include "command.h"
 
 #include <arpa/inet.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "globals.h"
 
-int pack_command(int fd, Command* cmd) {
+int pack_command(int fd, char* arg_buffer, Command* cmd) {
   char* buffer = malloc(CMD_RAW_HEADER_SIZE);
   if (!buffer) {
     return -1;
@@ -30,7 +31,7 @@ int pack_command(int fd, Command* cmd) {
   free(buffer);  // No longer needed
 
   if (cmd->len > 0) {
-    written = write_all(fd, cmd->args, cmd->len + 1);  // \0
+    written = write_all(fd, arg_buffer, cmd->len + 1);  // \0
     if (written != (long)(cmd->len + 1)) {
       return -1;
     }
