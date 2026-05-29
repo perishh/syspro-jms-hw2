@@ -1,10 +1,12 @@
-#include <errno.h>
+#include <arpa/inet.h>
 #include <fcntl.h>
+#include <netinet/in.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "command.h"
@@ -18,7 +20,7 @@ void print_usage() {
           "<operations_file>]\n");
 }
 
-int out;
+int conn;
 Command* cmd = NULL;
 
 char* buffer = NULL;
@@ -29,6 +31,7 @@ long read_commands(FILE* stream);
 long redirect(int fromfd, int tofd);
 
 int main(int argc, char** argv) {
+  // TODO: Maybe not needed anymore
   // Ignore SIGPIPE to prevent crashing when writing to closed pipe
   // signal(2), write(2)
   signal(SIGPIPE, SIG_IGN);
@@ -70,25 +73,28 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  // Open jms_in to send data to coord
-  out = open(jms_in, O_WRONLY | O_NONBLOCK);
-  if (out < 0) {
-    if (errno == ENXIO) {
-      fprintf(stderr, "Coordinator is not running.\n");
-    } else {
-      perror("open (jms_in)");
-    }
+  // Connect to coord tcp server
+  conn = socket(AF_INET, SOCK_STREAM, 0);
+  if (conn < 0) {
+    perror("socket");
     return 1;
   }
 
-  int in = open(jms_out, O_RDONLY | O_NONBLOCK);
-  if (in < 0) {
-    if (errno == ENXIO) {
-      fprintf(stderr, "Coordinator is not running.\n");
-    } else {
-      perror("open (jms_out)");
-    }
-    close(out);
+  struct sockaddr_in addr;
+  addr.sin_family = AF_INET;
+  addr.sin_port = htons(port);
+
+  // inet_pton(3)
+  if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
+    fprintf(stderr, "Invalid host IP address.\n");
+    close(conn);
+    return 1;
+  }
+
+  // connect(2)
+  if (connect(conn, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+    perror("connect");
+    close(conn);
     return 1;
   }
 
@@ -96,8 +102,7 @@ int main(int argc, char** argv) {
   buffer = malloc(INITIAL_BUFFER_SIZE);
   if (buffer == NULL) {
     perror("malloc");
-    close(in);
-    close(out);
+    close(conn);
     return 1;
   }
 
@@ -105,8 +110,7 @@ int main(int argc, char** argv) {
   if (cmd == NULL) {
     perror("malloc");
     free(buffer);
-    close(in);
-    close(out);
+    close(conn);
     return 1;
   }
 
@@ -129,18 +133,19 @@ int main(int argc, char** argv) {
   fds[0].fd = STDIN_FILENO;
   fds[0].events = POLLIN;
 
-  fds[1].fd = in;
+  fds[1].fd = conn;
   fds[1].events = POLLIN;
 
   for (;;) {
     int ret = poll(fds, 2, -1);
     if (ret > 0) {
       if (fds[0].revents & POLLIN) {
+        // TODO: Handle disconnection
         if (read_commands(stdin) >= 0) {
         }
       }
       if (fds[1].revents & POLLIN) {
-        if (redirect(in, STDOUT_FILENO) == -2) {
+        if (redirect(conn, STDOUT_FILENO) == -2) {
           break;
         }
       }
@@ -152,8 +157,7 @@ int main(int argc, char** argv) {
 
   free(cmd);
   free(buffer);
-  close(in);
-  close(out);
+  close(conn);
 
   return 0;
 }
@@ -161,6 +165,7 @@ int main(int argc, char** argv) {
 long redirect(int fromfd, int tofd) {
   ssize_t nread;
   while ((nread = read(fromfd, buffer, buffer_size)) > 0) {
+    // Check for EOT
     if (buffer[0] == 0x04 || buffer[nread - 1] == 0x04) {
       return -2;
     }
@@ -213,23 +218,9 @@ long read_commands(FILE* stream) {
   }
 
   // Send command
-  ssize_t written = write(out, cmd, sizeof(Command));
-  if (written < (long)sizeof(Command)) {
-    if (errno == EPIPE) {
-      fprintf(stderr, "Coordinator is no longer running.\n");
-    }
+  if (pack_command(conn, cmd) != 1) {
+    fprintf(stderr, "Failed to send command.\n");
     return -1;
-  }
-
-  if (cmd->len > 0) {
-    written =
-        write(out, buffer + action_length_with_null, arg_length_with_null);
-    if (written < arg_length_with_null) {
-      if (errno == EPIPE) {
-        fprintf(stderr, "Coordinator is no longer running.\n");
-      }
-      return -1;
-    }
   }
 
   return nread;

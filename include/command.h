@@ -27,13 +27,14 @@ typedef struct {
 } Command;
 #define CMD_RAW_HEADER_SIZE (sizeof(uint16_t) + 2 * sizeof(uint32_t))
 
+// TODO: Maybe include \0 in len
+
 // TODO: Ensure that the returned pointers are freed by the caller
 
 // TODO: Ensure buffers contain the assumed data and
 // lengths to prevent buffer overflows
 
-char* pack_command(const Command* cmd);
-
-int unpack_command(int fd, char* buffer, Command** cmd);
+int pack_command(int fd, Command* cmd);
+int unpack_command(int fd, Command** cmd);
 
 #endif

@@ -9,16 +9,10 @@
 void* client_main(void* argv) {
   long client_fd = (long)argv;
 
-  char* network_buffer = malloc(CMD_RAW_HEADER_SIZE);
-  if (network_buffer == NULL) {
-    close(client_fd);
-    return NULL;
-  }
-
   Command* cmd;
 
   while (1) {
-    int ret = unpack_command(client_fd, network_buffer, &cmd);
+    int ret = unpack_command(client_fd, &cmd);
     if (ret != 1) {
       if (ret == 0) {
         // EOF
@@ -33,7 +27,6 @@ void* client_main(void* argv) {
     free(cmd);
   }
 
-  free(network_buffer);
   close(client_fd);
   return NULL;
 }
