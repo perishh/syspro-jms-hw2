@@ -2,14 +2,6 @@
 
 #include <stdlib.h>
 
-#include "queue.h"
-
-#define BUCKETS 50
-
-struct map {
-  Node* buckets[BUCKETS];
-};
-
 int hash(int key) {
   int hash = key % BUCKETS;
   if (hash < 0) {

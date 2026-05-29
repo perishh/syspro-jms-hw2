@@ -100,6 +100,27 @@ void job_status(int client, int id) {
   job_unlock();
 }
 
+void job_show_active(int client) {
+  job_lock();
+  time_t now = time(NULL);
+
+  sendf(client, "Active Jobs:\n");
+  for (int i = 0; i < BUCKETS; i++) {
+    Node* current = job_map->buckets[i];
+    while (current != NULL) {
+      Job* j = (Job*)current->data;
+      if (j->pid != -1 && !j->finished) {
+        long elapsed = now - (j->timestamp);
+        sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n", j->id,
+              elapsed);
+      }
+      current = current->next;
+    }
+  }
+
+  job_unlock();
+}
+
 Job* job_get_available() {
   // TODO: Check if error handling is needed
   job_lock();

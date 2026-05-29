@@ -1,7 +1,13 @@
 #ifndef MAP_H
 #define MAP_H
 
-typedef struct map Map;
+#include "queue.h"
+
+#define BUCKETS 50
+
+typedef struct {
+  Node* buckets[BUCKETS];
+} Map;
 
 Map* map_init();
 int map_insert(Map* map, int key, void* data);
