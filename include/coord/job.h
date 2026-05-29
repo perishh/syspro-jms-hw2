@@ -15,6 +15,7 @@ typedef struct {
 
 int job_init();
 int job_add(int client, int len, char* raw);
+void job_status(int client, int id);
 Job* job_get_available();
 void job_free();
 void job_lock();

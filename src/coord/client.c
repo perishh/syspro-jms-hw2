@@ -28,6 +28,9 @@ void* client_main(void* argv) {
         // TODO: Handle error
         job_add(client_fd, cmd->len, cmd->args);
         break;
+      case STATUS:
+        job_status(client_fd, atoi(cmd->args));
+        break;
     }
 
     free(cmd);

@@ -76,6 +76,30 @@ int job_add(int client, int len, char* raw) {
   return 0;
 }
 
+void job_status(int client, int id) {
+  job_lock();
+
+  Job* j = map_get(job_map, id);
+  if (j == NULL) {
+    sendf(client, "JobID %d not found\n", id);
+  } else {
+    if (j->finished) {
+      sendf(client, "JobID %d Status:\tFinished\n", id);
+    } else if (j->pid == -1) {
+      sendf(client, "JobID %d Status:\tQueued (waiting in job queue)\n", id);
+    } else if (j->suspended) {
+      sendf(client, "JobID %d Status:\tSuspended\n", id);
+    } else {
+      time_t now = time(NULL);
+      long elapsed = now - (j->timestamp);
+      sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n", id,
+            elapsed);
+    }
+  }
+
+  job_unlock();
+}
+
 Job* job_get_available() {
   // TODO: Check if error handling is needed
   job_lock();
