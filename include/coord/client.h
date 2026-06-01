@@ -17,5 +17,6 @@
   }
 
 int client_start(int fd);
+void client_free();
 
 #endif

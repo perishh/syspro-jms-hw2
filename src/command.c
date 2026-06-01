@@ -47,12 +47,11 @@ int unpack_command(int fd, Command** cmd) {
 
   ssize_t nread = read_all(fd, buffer, CMD_RAW_HEADER_SIZE);
   if (nread != CMD_RAW_HEADER_SIZE) {
+    free(buffer);
+
     if (nread == 0) {
-      free(buffer);
       return 0;
     }
-
-    free(buffer);
     return -1;
   }
 
@@ -93,10 +92,13 @@ int unpack_command(int fd, Command** cmd) {
     return 1;
   }
 
-  // TODO: Maybe read blocking
+  // TODO: Maybe add timeout
   nread = read_all(fd, cmd_buffer->args, len + 1);  // \0
   if (nread != (long)(len + 1)) {
     free(cmd_buffer);
+    if (nread == 0) {
+      return 0;
+    }
     return -1;
   }
 

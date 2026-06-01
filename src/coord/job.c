@@ -5,19 +5,20 @@
 #include <string.h>
 
 #include "client.h"
+#include "list.h"
 #include "map.h"
-#include "queue.h"
+#include "state.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t queue_not_empty_cond = PTHREAD_COND_INITIALIZER;
 
-static Queue pending_jobs;
+static LinkedList pending_jobs;
 static Map* job_map = NULL;
 
 static int job_key = 1;
 
 int job_init() {
-  queue_init(&pending_jobs);
+  ll_init(&pending_jobs);
   job_map = map_init();
   if (job_map == NULL) {
     return -1;
@@ -58,7 +59,7 @@ int job_add(int client, int len, char* raw) {
     return -1;
   }
 
-  if (queue_enqueue(&pending_jobs, job) < 0) {
+  if (ll_push_back(&pending_jobs, job->id, job) < 0) {
     map_remove(job_map, job->id);
     job_unlock();
     free(job);
@@ -69,10 +70,13 @@ int job_add(int client, int len, char* raw) {
   pthread_cond_signal(&queue_not_empty_cond);
 
   sendf(client, "JobID: %d\n", job->id);
-  printf("Sent\n");
 
   job_unlock();
   return 0;
+}
+
+void broadcast_queue_not_empty() {
+  pthread_cond_broadcast(&queue_not_empty_cond);
 }
 
 void job_status(int client, int id) {
@@ -176,10 +180,22 @@ Job* job_get_available() {
   job_lock();
 
   while (pending_jobs.size == 0) {
+    if (is_terminating()) {
+      // no pending jobs + terminating = exit
+      job_unlock();
+      return NULL;
+    }
     pthread_cond_wait(&queue_not_empty_cond, &mutex);
+    if (pending_jobs.size == 0) {
+      if (is_terminating()) {
+        // Signal received + no pending jobs + terminating = exit
+        job_unlock();
+        return NULL;
+      }
+    }
   }
 
-  Job* job = queue_dequeue(&pending_jobs);
+  Job* job = ll_pop_front(&pending_jobs);
 
   job_unlock();
   return job;

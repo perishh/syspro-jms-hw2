@@ -1,12 +1,15 @@
+#include <bits/pthreadtypes.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
+#include <sys/poll.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 #include "args.h"
 #include "client.h"
 #include "job.h"
+#include "state.h"
 #include "worker.h"
 
 int main(int argc, char** argv) {
@@ -67,6 +70,15 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  // Start client pipes
+  if (state_init() < 0) {
+    perror("state_init");
+    close(server_fd);
+    job_free();
+    worker_free();
+    return 1;
+  }
+
   // Start listening
   // listen(2)
 
@@ -76,23 +88,43 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  struct pollfd fds[2];
+  fds[0].fd = server_fd;
+  fds[0].events = POLLIN;
+  fds[1].fd = state_get_fd();
+  fds[1].events = POLLIN;
+
   while (1) {
-    // TODO: Handle exiting
-    int client_fd = accept(server_fd, NULL, NULL);
-    if (client_fd < 0) {
-      perror("accept");
-      continue;
+    int ret = poll(fds, 2, -1);
+    if (ret < 0) {
+      perror("poll");
+      break;
     }
 
-    if (client_start(client_fd) < 0) {
-      close(client_fd);
-      continue;
+    if (fds[1].revents & POLLIN) {
+      // Termination signal received
+      break;
+    }
+
+    if (fds[0].revents & POLLIN) {
+      int client_fd = accept(server_fd, NULL, NULL);
+      if (client_fd < 0) {
+        perror("accept");
+        continue;
+      }
+
+      if (client_start(client_fd) < 0) {
+        close(client_fd);
+        continue;
+      }
     }
   }
 
-  close(server_fd);
-  job_free();
   worker_free();
+  client_free();
+  job_free();
+  state_free();
 
+  close(server_fd);
   return 0;
 }

@@ -24,5 +24,6 @@ Job* job_get_available();
 void job_free();
 void job_lock();
 void job_unlock();
+void broadcast_queue_not_empty();
 
 #endif

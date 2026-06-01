@@ -1,7 +1,7 @@
 #ifndef MAP_H
 #define MAP_H
 
-#include "queue.h"
+#include "list.h"
 
 #define BUCKETS 50
 

@@ -32,6 +32,10 @@ void* worker_main(void* arg) {
     worker_unlock();
 
     Job* job = job_get_available();
+    if (job == NULL) {
+      // Terminating
+      break;
+    }
 
     worker_lock();
     workers[index].current_job_id = job->id;
@@ -77,6 +81,7 @@ void* worker_main(void* arg) {
     job->state = FINISHED;
     job_unlock();
   }
+
   return NULL;
 }
 
@@ -107,7 +112,12 @@ int worker_init() {
   return 0;
 }
 
-void worker_free() { free(workers); }
+void worker_free() {
+  for (int i = 0; i < get_workers(); i++) {
+    pthread_join(workers[i].thread, NULL);
+  }
+  free(workers);
+}
 
 void worker_show(int client) {
   worker_lock();

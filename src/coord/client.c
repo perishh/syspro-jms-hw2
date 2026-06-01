@@ -2,58 +2,101 @@
 
 #include <pthread.h>
 #include <stdlib.h>
+#include <sys/poll.h>
 #include <unistd.h>
 
 #include "command.h"
 #include "job.h"
+#include "list.h"
+#include "state.h"
 #include "worker.h"
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static LinkedList client_threads;
+
+void client_lock() { pthread_mutex_lock(&mutex); }
+void client_unlock() { pthread_mutex_unlock(&mutex); }
+
+void client_remove(pthread_t thread) {
+  client_lock();
+
+  ll_remove(&client_threads, thread);
+
+  client_unlock();
+}
 
 void* client_main(void* argv) {
   long client_fd = (long)argv;
 
   Command* cmd;
 
+  struct pollfd fds[2];
+  fds[0].fd = client_fd;
+  fds[0].events = POLLIN;
+  fds[1].fd = state_get_fd();  // readonly after init so no mutex needed
+  fds[1].events = POLLIN;
+
   while (1) {
-    int ret = unpack_command(client_fd, &cmd);
-    if (ret != 1) {
-      if (ret == 0) {
-        // EOF
-        break;
-      } else {
-        continue;  // TODO: Maybe break?
-      }
+    int ret = poll(fds, 2, -1);
+    if (ret < 0) {
+      perror("poll");
+      break;
     }
 
-    switch (cmd->action) {
-      case SUBMIT:
-        // TODO: Handle error
-        job_add(client_fd, cmd->len, cmd->args);
-        break;
-      case STATUS:
-        job_status(client_fd, atoi(cmd->args));
-        break;
-      case SHOW_ACTIVE:
-        job_show_active(client_fd);
-        break;
-      case SHOW_FINISHED:
-        job_show_finished(client_fd);
-        break;
-      case STATUS_ALL: {
-        int n = 0;
-        if (cmd->len > 0) {
-          n = atoi(cmd->args);
+    if (fds[1].revents & POLLIN) {
+      // Termination signal received
+      break;
+    }
+
+    if (fds[0].revents & POLLIN) {
+      // Command received
+      ret = unpack_command(client_fd, &cmd);
+
+      if (ret != 1) {
+        if (ret == 0) {
+          // EOF
+          break;
+        } else {
+          continue;  // TODO: Maybe break?
         }
-        job_status_all(client_fd, n);
-      } break;
-      case SHOW_WORKERS:
-        worker_show(client_fd);
-        break;
-    }
+      }
 
-    free(cmd);
+      switch (cmd->action) {
+        case SUBMIT:
+          if (!is_terminating()) {
+            job_add(client_fd, cmd->len, cmd->args);
+          }
+          break;
+        case SHUTDOWN:
+          terminate();
+          break;
+        case STATUS:
+          job_status(client_fd, atoi(cmd->args));
+          break;
+        case SHOW_ACTIVE:
+          job_show_active(client_fd);
+          break;
+        case SHOW_FINISHED:
+          job_show_finished(client_fd);
+          break;
+        case STATUS_ALL: {
+          int n = 0;
+          if (cmd->len > 0) {
+            n = atoi(cmd->args);
+          }
+          job_status_all(client_fd, n);
+        } break;
+        case SHOW_WORKERS:
+          worker_show(client_fd);
+          break;
+      }
+
+      free(cmd);
+    }
   }
 
   close(client_fd);
+  client_remove(pthread_self());
   return NULL;
 }
 
@@ -67,5 +110,30 @@ int client_start(int fd) {
     return -1;
   }
 
+  client_lock();
+  ll_push_back(&client_threads, thread, NULL);
+  client_unlock();
+
   return 0;
+}
+
+void client_init() { ll_init(&client_threads); }
+
+void client_free() {
+  client_lock();
+
+  Node* node = client_threads.front;
+  while (node != NULL) {
+    pthread_cancel(node->key);
+    node = node->next;
+  }
+
+  node = client_threads.front;
+  while (node != NULL) {
+    pthread_join(node->key, NULL);
+    node = node->next;
+  }
+
+  ll_free(&client_threads);
+  client_unlock();
 }
