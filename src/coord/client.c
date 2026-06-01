@@ -1,6 +1,7 @@
 #include "client.h"
 
 #include <pthread.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <sys/poll.h>
 #include <unistd.h>
@@ -13,6 +14,7 @@
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static LinkedList client_threads;
+static int client_termination_fd[2];
 
 void client_lock() { pthread_mutex_lock(&mutex); }
 void client_unlock() { pthread_mutex_unlock(&mutex); }
@@ -33,7 +35,7 @@ void* client_main(void* argv) {
   struct pollfd fds[2];
   fds[0].fd = client_fd;
   fds[0].events = POLLIN;
-  fds[1].fd = state_get_fd();  // readonly after init so no mutex needed
+  fds[1].fd = client_termination_fd[0];
   fds[1].events = POLLIN;
 
   while (1) {
@@ -96,7 +98,9 @@ void* client_main(void* argv) {
   }
 
   close(client_fd);
-  client_remove(pthread_self());
+  if (!is_terminating()) {  // To prevent deadlock
+    client_remove(pthread_self());
+  }
   return NULL;
 }
 
@@ -111,24 +115,25 @@ int client_start(int fd) {
   }
 
   client_lock();
-  ll_push_back(&client_threads, thread, NULL);
+  ll_push_back(&client_threads, thread, (void*)(long)fd);
   client_unlock();
 
   return 0;
 }
 
-void client_init() { ll_init(&client_threads); }
+int client_init() {
+  if (pipe(client_termination_fd) < 0) {
+    return -1;
+  }
+  ll_init(&client_threads);
+  return 0;
+}
 
 void client_free() {
+  write(client_termination_fd[1], "\0", 1);
   client_lock();
 
   Node* node = client_threads.front;
-  while (node != NULL) {
-    pthread_cancel(node->key);
-    node = node->next;
-  }
-
-  node = client_threads.front;
   while (node != NULL) {
     pthread_join(node->key, NULL);
     node = node->next;
@@ -136,4 +141,29 @@ void client_free() {
 
   ll_free(&client_threads);
   client_unlock();
+  close(client_termination_fd[0]);
+  close(client_termination_fd[1]);
+}
+
+#define STATS_MSG                                                \
+  "Served %d jobs, %d were running, %d were still queued\n\x04", \
+      stats->total_jobs, stats->running_jobs, stats->queued_jobs
+
+void broadcast_stats(const struct job_stats* stats) {
+  int length = snprintf(NULL, 0, STATS_MSG);
+  char* buffer = malloc(length + 1);
+  if (buffer != NULL) {
+    snprintf(buffer, length + 1, STATS_MSG);
+    client_lock();
+    Node* node = client_threads.front;
+    while (node != NULL) {
+      int fd = (int)(long)node->data;
+      if (buffer != NULL) {
+        write(fd, buffer, length);
+      }
+      node = node->next;
+    }
+    client_unlock();
+    free(buffer);
+  }
 }

@@ -169,10 +169,13 @@ long redirect(int fromfd, int tofd) {
   }
 
   // Check for EOT
-  if (buffer[0] == 0x04 || buffer[nread - 1] == 0x04) {
+  if (buffer[0] == 0x04) {
     return -2;
   }
   write(tofd, buffer, nread);
+  if (buffer[nread - 1] == 0x04) {
+    return -2;
+  }
 
   return nread;
 }

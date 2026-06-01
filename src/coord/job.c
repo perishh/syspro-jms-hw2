@@ -181,17 +181,14 @@ Job* job_get_available() {
 
   while (pending_jobs.size == 0) {
     if (is_terminating()) {
-      // no pending jobs + terminating = exit
       job_unlock();
       return NULL;
     }
     pthread_cond_wait(&queue_not_empty_cond, &mutex);
-    if (pending_jobs.size == 0) {
-      if (is_terminating()) {
-        // Signal received + no pending jobs + terminating = exit
-        job_unlock();
-        return NULL;
-      }
+    if (is_terminating()) {
+      // Signal received + terminating = exit
+      job_unlock();
+      return NULL;
     }
   }
 
@@ -204,6 +201,38 @@ Job* job_get_available() {
 void job_lock() { pthread_mutex_lock(&mutex); }
 void job_unlock() { pthread_mutex_unlock(&mutex); }
 
+struct job_stats job_collect_stats() {
+  struct job_stats stats = {0, 0, 0};
+
+  job_lock();
+
+  for (int i = 0; i < BUCKETS; i++) {
+    Node* current = job_map->buckets[i];
+    while (current != NULL) {
+      Job* j = (Job*)current->data;
+      stats.total_jobs++;
+      if (j->state == ACTIVE) {
+        stats.running_jobs++;
+      } else if (j->state == QUEUED) {
+        stats.queued_jobs++;
+      }
+      current = current->next;
+    }
+  }
+
+  job_unlock();
+  return stats;
+}
+
 void job_free() {
-  // TODO
+  ll_free(&pending_jobs);
+  for (int i = 0; i < BUCKETS; i++) {
+    Node* current = job_map->buckets[i];
+    while (current != NULL) {
+      Job* j = (Job*)current->data;
+      free(j);
+      current = current->next;
+    }
+  }
+  map_free(job_map);
 }

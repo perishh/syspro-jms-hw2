@@ -22,7 +22,7 @@ void ll_free(LinkedList* l) {
   l->size = 0;
 }
 
-int ll_push_back(LinkedList* l, int key, void* data) {
+int ll_push_back(LinkedList* l, long key, void* data) {
   Node* new_node = malloc(sizeof(Node));
   if (new_node == NULL) {
     return -1;
@@ -44,7 +44,7 @@ int ll_push_back(LinkedList* l, int key, void* data) {
   return 0;
 }
 
-int ll_push_front(LinkedList* l, int key, void* data) {
+int ll_push_front(LinkedList* l, long key, void* data) {
   Node* new_node = malloc(sizeof(Node));
   if (new_node == NULL) {
     return -1;
@@ -82,7 +82,7 @@ void* ll_pop_front(LinkedList* l) {
   return data;
 }
 
-int ll_remove(LinkedList* l, int key) {
+int ll_remove(LinkedList* l, long key) {
   Node* current = l->front;
   Node* prev = NULL;
 

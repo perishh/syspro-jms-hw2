@@ -119,7 +119,12 @@ int main(int argc, char** argv) {
     }
   }
 
+  struct job_stats stats = job_collect_stats();
+
   worker_free();
+
+  broadcast_stats(&stats);
+
   client_free();
   job_free();
   state_free();

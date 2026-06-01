@@ -43,6 +43,7 @@ void* worker_main(void* arg) {
     worker_unlock();
 
     job_lock();
+    job->state = ACTIVE;
 
     pid_t pid = proc_start(job);
 
