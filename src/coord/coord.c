@@ -1,6 +1,4 @@
-#include <bits/pthreadtypes.h>
 #include <netinet/in.h>
-#include <signal.h>
 #include <stdio.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
@@ -9,20 +7,13 @@
 #include "args.h"
 #include "client.h"
 #include "job.h"
+#include "sig.h"
 #include "state.h"
 #include "worker.h"
 
 int main(int argc, char** argv) {
-  // sigsetops(3)
-  sigset_t signals;
-  if (sigemptyset(&signals) < 0 || sigaddset(&signals, SIGCHLD) < 0) {
-    return -1;
-  }
-
-  // Block default handling of signals
-  // sigprocmask(2)
-  if (sigprocmask(SIG_BLOCK, &signals, NULL) < 0) {
-    return -1;
+  if (sig_init() < 0) {
+    return 1;
   }
 
   if (args_init(argc, argv) < 0) {
@@ -88,21 +79,29 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  struct pollfd fds[2];
+  struct pollfd fds[3];
   fds[0].fd = server_fd;
   fds[0].events = POLLIN;
   fds[1].fd = state_get_fd();
   fds[1].events = POLLIN;
+  fds[2].fd = SIG_FILENO;
+  fds[2].events = POLLIN;
 
   while (1) {
-    int ret = poll(fds, 2, -1);
+    int ret = poll(fds, 3, -1);
     if (ret < 0) {
       perror("poll");
       break;
     }
 
-    if (fds[1].revents & POLLIN) {
+    if (fds[2].revents & POLLIN) {
       // Termination signal received
+      terminate();
+      break;
+    }
+
+    if (fds[1].revents & POLLIN) {
+      // Shutdown command received
       break;
     }
 
@@ -124,6 +123,7 @@ int main(int argc, char** argv) {
   client_free();
   job_free();
   state_free();
+  sig_free();
 
   close(server_fd);
   return 0;

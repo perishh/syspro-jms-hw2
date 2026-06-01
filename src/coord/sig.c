@@ -1,5 +1,4 @@
 #include "sig.h"
-#include "polling.h"
 
 #include <signal.h>
 #include <sys/signalfd.h>
@@ -22,13 +21,11 @@ int sig_init() {
     return -1;
   }
 
+  sigdelset(&signals, SIGCHLD);
+
   // signalfd(2)
   SIG_FILENO = signalfd(-1, &signals, SFD_CLOEXEC | SFD_NONBLOCK);
   if (SIG_FILENO < 0) {
-    return -1;
-  }
-
-  if (polling_add(SIG_FILENO) < 0) {
     return -1;
   }
 
