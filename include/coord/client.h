@@ -19,6 +19,7 @@
   }
 void broadcast_stats(const struct job_stats* stats);
 
+int client_init();
 int client_start(int fd);
 void client_free();
 

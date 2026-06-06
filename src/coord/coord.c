@@ -1,3 +1,5 @@
+#define _GNU_SOURCE
+
 #include <netinet/in.h>
 #include <stdio.h>
 #include <sys/poll.h>
@@ -36,9 +38,15 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (client_init() < 0) {
+    job_free();
+    worker_free();
+    return 1;
+  }
+
   // Initialize TCP Server
   // socket(2)
-  int server_fd = socket(AF_INET, SOCK_STREAM, 0);
+  int server_fd = socket(AF_INET, SOCK_STREAM | SOCK_CLOEXEC, 0);
   if (server_fd < 0) {
     perror("socket");
     return 1;
@@ -106,7 +114,7 @@ int main(int argc, char** argv) {
     }
 
     if (fds[0].revents & POLLIN) {
-      int client_fd = accept(server_fd, NULL, NULL);
+      int client_fd = accept4(server_fd, NULL, NULL, SOCK_CLOEXEC);
       if (client_fd < 0) {
         perror("accept");
         continue;

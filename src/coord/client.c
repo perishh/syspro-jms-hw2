@@ -1,5 +1,6 @@
 #include "client.h"
 
+#include <bits/pthreadtypes.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -14,6 +15,7 @@
 #include "worker.h"
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t clients_empty_cond = PTHREAD_COND_INITIALIZER;
 static LinkedList client_threads;
 static int client_termination_fd = -1;
 
@@ -24,6 +26,9 @@ void client_remove(pthread_t thread) {
   client_lock();
 
   ll_remove(&client_threads, thread);
+  if (client_threads.size == 0) {
+    pthread_cond_signal(&clients_empty_cond);
+  }
 
   client_unlock();
 }
@@ -95,20 +100,20 @@ void* client_main(void* argv) {
   }
 
   close(client_fd);
-  if (!is_terminating()) {  // To prevent deadlock
-    client_remove(pthread_self());
-  }
+
+  client_remove(pthread_self());
+
   return NULL;
 }
 
 int client_start(int fd) {
-  // TODO: Maybe start detached or join at shutdown?
   pthread_t thread;
 
   // pthread_create(3)
   if (pthread_create(&thread, NULL, client_main, (void*)(long)fd) != 0) {
     return -1;
   }
+  pthread_detach(thread);
 
   client_lock();
   ll_push_back(&client_threads, thread, (void*)(long)fd);
@@ -127,16 +132,16 @@ int client_init() {
 
 void client_free() {
   write(client_termination_fd, &(uint64_t){1}, sizeof(uint64_t));
+
   client_lock();
 
-  Node* node = client_threads.front;
-  while (node != NULL) {
-    pthread_join(node->key, NULL);
-    node = node->next;
+  while (client_threads.size > 0) {
+    pthread_cond_wait(&clients_empty_cond, &mutex);
   }
 
   ll_free(&client_threads);
   client_unlock();
+
   close(client_termination_fd);
 }
 

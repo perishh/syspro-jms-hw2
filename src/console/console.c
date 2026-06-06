@@ -118,7 +118,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  printf("Connected to %s:%d.\n", host, port);
+  printf("Connected to %s:%d\n", host, port);
 
   if (operations_file != NULL) {
     FILE* ops = fopen(operations_file, "r");
