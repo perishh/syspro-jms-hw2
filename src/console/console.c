@@ -2,7 +2,6 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,6 +10,7 @@
 
 #include "command.h"
 #include "globals.h"
+#include "sig.h"
 
 #define INITIAL_BUFFER_SIZE 4096
 
@@ -31,11 +31,6 @@ long read_commands(FILE* stream);
 long redirect(int fromfd, int tofd);
 
 int main(int argc, char** argv) {
-  // TODO: Maybe not needed anymore
-  // Ignore SIGPIPE to prevent crashing when writing to closed pipe
-  // signal(2), write(2)
-  signal(SIGPIPE, SIG_IGN);
-
   char* host = NULL;
   int port = 0;
   char* operations_file = NULL;
@@ -73,10 +68,15 @@ int main(int argc, char** argv) {
     return 1;
   }
 
+  if (sig_init() < 0) {
+    return 1;
+  }
+
   // Connect to coord tcp server
   conn = socket(AF_INET, SOCK_STREAM, 0);
   if (conn < 0) {
     perror("socket");
+    sig_free();
     return 1;
   }
 
@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
   if (inet_pton(AF_INET, host, &addr.sin_addr) != 1) {
     fprintf(stderr, "Invalid host IP address.\n");
     close(conn);
+    sig_free();
     return 1;
   }
 
@@ -95,6 +96,7 @@ int main(int argc, char** argv) {
   if (connect(conn, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
     perror("connect");
     close(conn);
+    sig_free();
     return 1;
   }
 
@@ -103,6 +105,7 @@ int main(int argc, char** argv) {
   if (buffer == NULL) {
     perror("malloc");
     close(conn);
+    sig_free();
     return 1;
   }
 
@@ -111,8 +114,11 @@ int main(int argc, char** argv) {
     perror("malloc");
     free(buffer);
     close(conn);
+    sig_free();
     return 1;
   }
+
+  printf("Connected to %s:%d.\n", host, port);
 
   if (operations_file != NULL) {
     FILE* ops = fopen(operations_file, "r");
@@ -129,25 +135,31 @@ int main(int argc, char** argv) {
   }
 
   // poll(2)
-  struct pollfd fds[2];
+  struct pollfd fds[3];
   fds[0].fd = STDIN_FILENO;
   fds[0].events = POLLIN;
 
   fds[1].fd = conn;
   fds[1].events = POLLIN;
 
+  fds[2].fd = SIG_FILENO;
+  fds[2].events = POLLIN;
+
   for (;;) {
-    int ret = poll(fds, 2, -1);
+    int ret = poll(fds, 3, -1);
     if (ret > 0) {
       if (fds[0].revents & POLLIN) {
-        // TODO: Handle disconnection
         if (read_commands(stdin) >= 0) {
         }
       }
       if (fds[1].revents & POLLIN) {
-        if (redirect(conn, STDOUT_FILENO) == -2) {
+        if (redirect(conn, STDOUT_FILENO) <= 0) {
           break;
         }
+      }
+      if (fds[2].revents & POLLIN) {
+        // Termination signal received
+        break;
       }
     } else {
       perror("poll");
@@ -158,6 +170,9 @@ int main(int argc, char** argv) {
   free(cmd);
   free(buffer);
   close(conn);
+  sig_free();
+
+  printf("Disconnected.\n");
 
   return 0;
 }
@@ -172,7 +187,7 @@ long redirect(int fromfd, int tofd) {
   if (buffer[0] == 0x04) {
     return -2;
   }
-  write(tofd, buffer, nread);
+  write(tofd, buffer, nread);  // We don't care if this fails
   if (buffer[nread - 1] == 0x04) {
     return -2;
   }

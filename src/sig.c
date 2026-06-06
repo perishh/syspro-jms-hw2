@@ -11,7 +11,8 @@ int sig_init() {
   // sigsetops(3)
   sigset_t signals;
   if (sigemptyset(&signals) < 0 || sigaddset(&signals, SIGCHLD) < 0 ||
-      sigaddset(&signals, SIGINT) < 0 || sigaddset(&signals, SIGTERM) < 0) {
+      sigaddset(&signals, SIGPIPE) < 0 || sigaddset(&signals, SIGINT) < 0 ||
+      sigaddset(&signals, SIGTERM) < 0) {
     return -1;
   }
 
@@ -22,6 +23,7 @@ int sig_init() {
   }
 
   sigdelset(&signals, SIGCHLD);
+  sigdelset(&signals, SIGPIPE);
 
   // signalfd(2)
   SIG_FILENO = signalfd(-1, &signals, SFD_CLOEXEC | SFD_NONBLOCK);

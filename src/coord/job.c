@@ -90,7 +90,6 @@ void job_status(int client, int id) {
       case QUEUED:
         sendf(client, "JobID %d Status:\tQueued (waiting in job queue)\n", id);
         break;
-      case SUSPENDED:
       case ACTIVE: {
         time_t now = time(NULL);
         long elapsed = now - (j->submit_time);
@@ -158,7 +157,6 @@ void job_status_all(int client, int n) {
             sendf(client, "JobID %d Status:\tQueued (waiting in job queue)\n",
                   j->id);
             break;
-          case SUSPENDED:
           case ACTIVE: {
             elapsed = now - j->start_time;
             sendf(client, "JobID %d Status:\tActive (running for %ld sec)\n",
@@ -176,7 +174,6 @@ void job_status_all(int client, int n) {
 }
 
 Job* job_get_available() {
-  // TODO: Check if error handling is needed
   job_lock();
 
   while (pending_jobs.size == 0) {

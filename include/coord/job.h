@@ -4,15 +4,14 @@
 #include <time.h>
 #include <unistd.h>
 
-// TODO: Remove suspended, no longer needed
-typedef enum { QUEUED, ACTIVE, SUSPENDED, FINISHED } JobState;
+typedef enum { QUEUED, ACTIVE, FINISHED } JobState;
 
 typedef struct {
   int id;
   JobState state;
   time_t submit_time;
   time_t start_time;
-  char* raw_argv;  // TODO: reminder to free
+  char* raw_argv;
 } Job;
 
 struct job_stats {

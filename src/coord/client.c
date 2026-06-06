@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <sys/eventfd.h>
 #include <sys/poll.h>
 #include <unistd.h>
 
@@ -14,7 +15,7 @@
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static LinkedList client_threads;
-static int client_termination_fd[2];
+static int client_termination_fd = -1;
 
 void client_lock() { pthread_mutex_lock(&mutex); }
 void client_unlock() { pthread_mutex_unlock(&mutex); }
@@ -35,7 +36,7 @@ void* client_main(void* argv) {
   struct pollfd fds[2];
   fds[0].fd = client_fd;
   fds[0].events = POLLIN;
-  fds[1].fd = client_termination_fd[0];
+  fds[1].fd = client_termination_fd;
   fds[1].events = POLLIN;
 
   while (1) {
@@ -55,12 +56,8 @@ void* client_main(void* argv) {
       ret = unpack_command(client_fd, &cmd);
 
       if (ret != 1) {
-        if (ret == 0) {
-          // EOF
-          break;
-        } else {
-          continue;  // TODO: Maybe break?
-        }
+        // Error occurred, disconnect client
+        break;
       }
 
       switch (cmd->action) {
@@ -105,7 +102,6 @@ void* client_main(void* argv) {
 }
 
 int client_start(int fd) {
-  // TODO: Maybe store thread/fd for comms
   // TODO: Maybe start detached or join at shutdown?
   pthread_t thread;
 
@@ -122,7 +118,7 @@ int client_start(int fd) {
 }
 
 int client_init() {
-  if (pipe(client_termination_fd) < 0) {
+  if ((client_termination_fd = eventfd(0, EFD_CLOEXEC)) < 0) {
     return -1;
   }
   ll_init(&client_threads);
@@ -130,7 +126,7 @@ int client_init() {
 }
 
 void client_free() {
-  write(client_termination_fd[1], "\0", 1);
+  write(client_termination_fd, &(uint64_t){1}, sizeof(uint64_t));
   client_lock();
 
   Node* node = client_threads.front;
@@ -141,8 +137,7 @@ void client_free() {
 
   ll_free(&client_threads);
   client_unlock();
-  close(client_termination_fd[0]);
-  close(client_termination_fd[1]);
+  close(client_termination_fd);
 }
 
 #define STATS_MSG                                                \

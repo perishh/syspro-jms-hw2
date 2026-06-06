@@ -65,15 +65,7 @@ void* worker_main(void* arg) {
         break;
       }
 
-      if (WIFSTOPPED(wstatus)) {
-        job_lock();
-        job->state = SUSPENDED;
-        job_unlock();
-      } else if (WIFCONTINUED(wstatus)) {
-        job_lock();
-        job->state = ACTIVE;
-        job_unlock();
-      } else if (WIFEXITED(wstatus)) {
+      if (WIFEXITED(wstatus)) {
         break;
       }
     }
@@ -87,7 +79,6 @@ void* worker_main(void* arg) {
 }
 
 int worker_start() {
-  // TODO: Maybe start detached or join at shutdown?
   worker_lock();
 
   for (int i = 0; i < get_workers(); i++) {
