@@ -273,15 +273,6 @@ Action parse_action(const char* cmd) {
   if (strcmp(cmd, "show-finished") == 0) {
     return SHOW_FINISHED;
   }
-  if (strcmp(cmd, "suspend") == 0) {
-    return SUSPEND;
-  }
-  if (strcmp(cmd, "resume") == 0) {
-    return RESUME;
-  }
-  if (strcmp(cmd, "suspend") == 0) {
-    return SUSPEND;
-  }
   if (strcmp(cmd, "shutdown") == 0) {
     return SHUTDOWN;
   }
