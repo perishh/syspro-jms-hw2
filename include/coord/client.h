@@ -17,10 +17,30 @@
       free(buffer);                                                 \
     }                                                               \
   }
+
+/**
+ * @brief Broadcasts job stats to all clients.
+ * @param stats Pointer to job stats to broadcast
+ */
 void broadcast_stats(const struct job_stats* stats);
 
+/**
+ * @brief Initializes client subsystem, creates termination eventfd.
+ * @return 0 on success, -1 otherwise
+ */
 int client_init();
+
+/**
+ * @brief Starts a client thread to handle the given client file descriptor.
+ * @param fd File descriptor of the accepted client connection
+ * @return 0 on success, -1 otherwise
+ */
 int client_start(int fd);
+
+/**
+ * @brief Frees client subsystem, signals all client threads to terminate and
+ * waits for them to finish.
+ */
 void client_free();
 
 #endif

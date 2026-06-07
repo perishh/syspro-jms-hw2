@@ -128,9 +128,14 @@ int main(int argc, char** argv) {
       // Program can continue
     } else {
       // While there still is unread data
-      while (read_commands(ops) > 0) {
+      int ret;
+      while ((ret = read_commands(ops)) > 0) {
       }
       fclose(ops);
+      if (ret == -2) {
+        // Problem sending to server
+        goto disconnect;
+      }
     }
   }
 
@@ -149,7 +154,9 @@ int main(int argc, char** argv) {
     int ret = poll(fds, 3, -1);
     if (ret > 0) {
       if (fds[0].revents & POLLIN) {
-        if (read_commands(stdin) >= 0) {
+        if (read_commands(stdin) == -2) {
+          // Problem sending to server
+          break;
         }
       }
       if (fds[1].revents & POLLIN) {
@@ -167,6 +174,7 @@ int main(int argc, char** argv) {
     }
   }
 
+disconnect:
   free(cmd);
   free(buffer);
   close(conn);
@@ -240,7 +248,7 @@ long read_commands(FILE* stream) {
   // Send command
   if (pack_command(conn, buffer + action_length_with_null, cmd) != 1) {
     fprintf(stderr, "Failed to send command.\n");
-    return -1;
+    return -2;
   }
 
   return nread;
